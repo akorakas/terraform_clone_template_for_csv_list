@@ -51,15 +51,16 @@ locals {
 
   parsed_vm_list = [
     for vm in local.raw_vm_list : {
-      name         = split(",", vm)[0]
-      ip           = split(",", vm)[1]
-      netmask      = split(",", vm)[2]
-      gateway      = split(",", vm)[3]
-      network      = split(",", vm)[4]
-      datastore    = split(",", vm)[5]
-      vm_cpu       = tonumber(split(",", vm)[6])
-      vm_memory    = tonumber(split(",", vm)[7])
-      vm_disk_size = tonumber(split(",", vm)[8])
+      name                   = split(",", vm)[0]
+      ip                     = split(",", vm)[1]
+      netmask                = split(",", vm)[2]
+      gateway                = split(",", vm)[3]
+      network                = split(",", vm)[4]
+      datastore              = split(",", vm)[5]
+      vm_cpu                 = tonumber(split(",", vm)[6])
+      vm_memory              = tonumber(split(",", vm)[7])
+      vm_disk_size           = tonumber(split(",", vm)[8])
+      vm_additional_disk_size = length(split(",", vm)) > 9 && split(",", vm)[9] != "" ? tonumber(split(",", vm)[9]) : 0
     }
   ]
 }
@@ -82,10 +83,23 @@ resource "vsphere_virtual_machine" "vm" {
     adapter_type = data.vsphere_virtual_machine.template.network_interface_types[0]
   }
 
+  # Primary Disk (unit_number 0)
   disk {
-    label            = "disk0"
+    label            = "Primary Disk"
     size             = each.value.vm_disk_size
     thin_provisioned = data.vsphere_virtual_machine.template.disks.0.thin_provisioned
+    unit_number      = 0
+  }
+
+  # Additional Disk (unit_number 1), only created if size > 0
+  dynamic "disk" {
+    for_each = each.value.vm_additional_disk_size > 0 ? [each.value.vm_additional_disk_size] : []
+    content {
+      label            = "Secondary Disk"
+      size             = disk.value
+      thin_provisioned = true
+      unit_number      = 1
+    }
   }
 
   clone {
